@@ -1,0 +1,110 @@
+[package]
+name = "pallet-ordinals"
+description = "A pallet for indexing ordinals UTXOs on Substrate."
+version = "0.0.1"
+license = "MIT-0"
+authors = ["subbit team"]
+repository = "https://github.com/subbitlab/pallet-ordinals"
+edition = "2021"
+publish = false
+
+[workspace]
+members = [".",	"crates/ordinals"]
+resolver = "2"
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = [
+	"derive",
+] }
+scale-info = { version = "2.10.0", default-features = false, features = [
+	"derive",
+] }
+
+# frame deps
+frame-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false, optional = true }
+frame-support = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+serde = { version = "1.0", default-features = false}
+serde_json = { version = "1.0", default-features = false}
+
+anyhow =  {version = "1", default-features = false}
+thiserror-no-std = "2.0.2"
+generic-array = "0.14"
+cfg-if = "1.0"
+hex = {version = "0.4", default-features = false}
+core2 = { version = "0.3", default-features = false, features = ["alloc"] }
+bitcoin = { version = "0.30.1", default-features = false, features = ["no-std"] }
+bip39 = {version = "2.0.0",default-features = false}
+hex-literal = "0.4.1"
+lazy_static = "1.4"
+ordinals = { path = "./crates/ordinals" }
+sha2 = {version = "0.10.8", default-features = false }
+log = "0.4.20"
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-benchmarking?/std",
+	"frame-support/std",
+	"frame-system/std",
+	"scale-info/std",
+	"sp-core/std",
+	"sp-std/std",
+	"sp-io/std",
+	"sp-runtime/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+]
+try-runtime = [
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"sp-runtime/try-runtime",
+]
+
+[workspace.lints.rust]
+suspicious_double_ref_op = { level = "allow", priority = 2 }
+
+[workspace.lints.clippy]
+all = { level = "allow", priority = 0 }
+correctness = { level = "warn", priority = 1 }
+complexity = { level = "warn", priority = 1 }
+if-same-then-else = { level = "allow", priority = 2 }
+zero-prefixed-literal = { level = "allow", priority = 2 }            # 00_1000_000
+type_complexity = { level = "allow", priority = 2 }                  # raison d'etre
+nonminimal-bool = { level = "allow", priority = 2 }                  # maybe
+borrowed-box = { level = "allow", priority = 2 }                     # Reasonable to fix this one
+too-many-arguments = { level = "allow", priority = 2 }               # (Turning this on would lead to)
+needless-lifetimes = { level = "allow", priority = 2 }               # generated code
+unnecessary_cast = { level = "allow", priority = 2 }                 # Types may change
+identity-op = { level = "allow", priority = 2 }                      # One case where we do 0 +
+useless_conversion = { level = "allow", priority = 2 }               # Types may change
+unit_arg = { level = "allow", priority = 2 }                         # stylistic
+option-map-unit-fn = { level = "allow", priority = 2 }               # stylistic
+bind_instead_of_map = { level = "allow", priority = 2 }              # stylistic
+erasing_op = { level = "allow", priority = 2 }                       # E.g. 0 * DOLLARS
+eq_op = { level = "allow", priority = 2 }                            # In tests we test equality.
+while_immutable_condition = { level = "allow", priority = 2 }        # false positives
+needless_option_as_deref = { level = "allow", priority = 2 }         # false positives
+derivable_impls = { level = "allow", priority = 2 }                  # false positives
+stable_sort_primitive = { level = "allow", priority = 2 }            # prefer stable sort
+extra-unused-type-parameters = { level = "allow", priority = 2 }     # stylistic
+default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
