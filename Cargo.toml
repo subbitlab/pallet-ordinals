@@ -33,9 +33,10 @@ frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 serde = { version = "1.0", default-features = false}
 serde_json = { version = "1.0", default-features = false}
-
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 anyhow =  {version = "1", default-features = false}
 thiserror-no-std = "2.0.2"
 generic-array = "0.14"

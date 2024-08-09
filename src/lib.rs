@@ -30,6 +30,49 @@ pub const FIRST_HEIGHT: u32 = 839999;
 pub const FIRST_BLOCK_HASH: &'static str =
     "0000000000000000000172014ba58d66455762add0512355ad651207918494ab";
 
+pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"ordi");
+
+/// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrappers.
+/// We can use from supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
+/// the types with this pallet-specific identifier.
+pub mod sr25519 {
+    mod app_sr25519 {
+        use super::super::KEY_TYPE;
+        use sp_runtime::app_crypto::{app_crypto, sr25519};
+        app_crypto!(sr25519, KEY_TYPE);
+    }
+
+    sp_application_crypto::with_pair! {
+		/// An octopus keypair using sr25519 as its crypto.
+		pub type AuthorityPair = app_sr25519::Pair;
+	}
+
+    /// An octopus signature using sr25519 as its crypto.
+    pub type AuthoritySignature = app_sr25519::Signature;
+
+    /// An octopus identifier using sr25519 as its crypto.
+    pub type AuthorityId = app_sr25519::Public;
+}
+
+pub mod ecdsa {
+    mod app_ecdsa {
+        use super::super::KEY_TYPE;
+        use sp_runtime::app_crypto::{app_crypto, ecdsa};
+        app_crypto!(ecdsa, KEY_TYPE);
+    }
+
+    sp_application_crypto::with_pair! {
+		/// An octopus keypair using ecdsa as its crypto.
+		pub type AuthorityPair = app_ecdsa::Pair;
+	}
+
+    /// An octopus signature using ecdsa as its crypto.
+    pub type AuthoritySignature = app_ecdsa::Signature;
+
+    /// An octopus identifier using ecdsa as its crypto.
+    pub type AuthorityId = app_ecdsa::Public;
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -803,6 +846,8 @@ pub(crate) struct RuneUpdater {
 
 use codec::{Encode, Decode};
 use scale_info::TypeInfo;
+use sp_core::crypto::KeyTypeId;
+
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, Eq, PartialEq)]
 pub struct BlockPayload<Public> {
     pub block_height: u32,

@@ -14,12 +14,15 @@ This project builds a utility substrate pallet to index RUNE UTXOs of bitcoin. I
 Simply include this pallet to your runtime and set an URL indicates the bitcoin RPC server.
 
 ``` rust
-#[pallet::config]
-pub trait Config: frame_system::Config {
-    type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-    type WeightInfo: WeightInfo;
-    type MaxOutPointRuneBalancesLen: Get<u32>;
-}
+    #[pallet::config]
+    pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        type WeightInfo: WeightInfo;
+        type MaxOutPointRuneBalancesLen: Get<u32>;
+        type AppCrypto: AppCrypto<Self::Public, Self::Signature>;
+        #[pallet::constant]
+        type UnsignedPriority: Get<TransactionPriority>;
+    }
 ```
 
 ## License
