@@ -546,6 +546,7 @@ dependencies = [
  "core2",
  "hex_lit",
  "secp256k1 0.27.0",
+ "serde",
 ]
 
 [[package]]
@@ -574,6 +575,7 @@ checksum = "5d7066118b13d4b20b23645932dfb3a81ce7e29f95726c2036fa33cd7b092501"
 dependencies = [
  "bitcoin-private",
  "core2",
+ "serde",
 ]
 
 [[package]]
@@ -2972,6 +2974,7 @@ checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
  "bitcoin_hashes 0.12.0",
  "secp256k1-sys 0.8.1",
+ "serde",
 ]
 
 [[package]]

@@ -16,10 +16,11 @@ use alloc::string::{String, ToString};
 use bitcoin::{constants::SUBSIDY_HALVING_INTERVAL, Network};
 use frame_support::traits::BuildGenesisConfig;
 use ordinals::{Height, Rune, RuneId, Terms};
+use sp_runtime::traits::IdentifyAccount;
 use sp_runtime::offchain::http;
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, str::FromStr, vec::Vec};
-// use std::collections::HashMap;
 use thiserror_no_std::Error;
+use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SendUnsignedTransaction, SignedPayload, Signer, SigningTypes};
 
 pub use pallet::*;
 pub use weights::*;
@@ -39,10 +40,13 @@ pub mod pallet {
     use ordinals::{Artifact, Edict, Etching, Pile, Rune, RuneId, SpacedRune};
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         type WeightInfo: WeightInfo;
         type MaxOutPointRuneBalancesLen: Get<u32>;
+        type AppCrypto: AppCrypto<Self::Public, Self::Signature>;
+        #[pallet::constant]
+        type UnsignedPriority: Get<TransactionPriority>;
     }
 
     #[pallet::genesis_config]
@@ -153,10 +157,54 @@ pub mod pallet {
     pub enum Event<T: Config> {}
 
     #[pallet::error]
-    pub enum Error<T> {}
+    pub enum Error<T> {
+        NotInitial,
+        BlockDeserialize,
+        BlockIndexFailed,
+        IllegalBlockHeight,
+    }
 
     #[pallet::call]
-    impl<T: Config> Pallet<T> {}
+    impl<T: Config> Pallet<T> {
+
+        #[transactional]
+        #[pallet::weight(195_000_000)]
+        pub fn submit_block(origin: OriginFor<T>,
+            block_payload: BlockPayload<T::Public>,
+            _signature: T::Signature,
+        ) -> DispatchResultWithPostInfo {
+            ensure_none(origin)?;
+            let (current_height, _) = Self::highest_block().ok_or(Error::<T>::NotInitial)?;
+            ensure!(current_height + 1 == block_payload.block_height, Error::<T>::IllegalBlockHeight);
+            let block: BlockData = serde_json::from_slice(block_payload.block_bytes.as_slice()).map_err(|_| Error::<T>::BlockDeserialize)?;
+            Self::index_block(block_payload.block_height, block).map_err(|_| Error::<T>::BlockIndexFailed)?;
+            Ok(().into())
+        }
+
+    }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            // Firstly let's check that we call the right function.
+            if let Call::submit_block { ref block_payload, ref signature } = call {
+                let signature_valid =
+                    SignedPayload::<T>::verify::<T::AppCrypto>(block_payload, signature.clone());
+                if !signature_valid {
+                    return InvalidTransaction::BadProof.into()
+                }
+                Self::validate_transaction_parameters(
+                    block_payload.public.clone().into_account(),
+                )
+            } else {
+                InvalidTransaction::Call.into()
+            }
+        }
+
+
+    }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -187,9 +235,17 @@ pub mod pallet {
                                     return;
                                 }
                                 log::info!("indexing block {:?}", block.header);
-                                if let Err(e) = Self::index_block(height + 1, block) {
-                                    log::info!("index error: {:?}", e);
-                                }
+                                let b = serde_json::to_vec(&block).unwrap();
+                                let result = Signer::<T, T::AppCrypto>::all_accounts()
+                                    .send_unsigned_transaction(
+                                        |account| crate::BlockPayload {
+                                            block_height: height + 1,
+                                            block_bytes: b.clone(),
+                                            public: account.public.clone(),
+                                        },
+                                        |payload, signature| Call::submit_block { block_payload: payload, signature },
+                                    );
+
                             }
                             Err(e) => {
                                 log::info!("error: {:?}", e);
@@ -204,9 +260,46 @@ pub mod pallet {
         }
     }
 
+    impl<T: Config> Pallet<T> {
+
+        fn validate_transaction_parameters(
+            account_id: <T as frame_system::Config>::AccountId,
+        ) -> TransactionValidity {
+            // Let's make sure to reject transactions from the future.
+            let current_block = <frame_system::Pallet<T>>::block_number();
+   /*         if (current_block.clone() as u32) < block_number {
+                return InvalidTransaction::Future.into()
+            }
+*/
+            ValidTransaction::with_tag_prefix("PalletOrdinals")
+                // We set base priority to 2**21 and hope it's included before any other
+                // transactions in the pool.
+                .priority(T::UnsignedPriority::get())
+                // This transaction does not require anything else to go before into the pool.
+                //.and_requires()
+                // We set the `provides` tag to `account_id`. This makes
+                // sure only one transaction produced by current validator will ever
+                // get to the transaction pool and will end up in the block.
+                // We can still have multiple transactions compete for the same "spot",
+                // and the one with higher priority will replace other one in the pool.
+                .and_provides(account_id)
+                // The transaction is only valid for next 5 blocks. After that it's
+                // going to be revalidated by the pool.
+                .longevity(10)
+                // It's fine to propagate that transaction to other peers, which means it can be
+                // created even by nodes that don't produce blocks.
+                // Note that sometimes it's better to keep it for yourself (if you are the block
+                // producer), since for instance in some schemes others may copy your solution and
+                // claim a reward.
+                .propagate(true)
+                .build()
+        }
+    }
+
     use bitcoin::blockdata::transaction::OutPoint;
     use bitcoin::hashes::Hash;
     use bitcoin::{BlockHash, Transaction};
+    use frame_support::{pallet, transactional};
     use ordinals::{Runestone, Txid};
 
     impl<T: Config> Pallet<T> {
@@ -283,11 +376,11 @@ pub mod pallet {
                             Some((SUBSIDY_HALVING_INTERVAL * 5).into()),
                         ),
                         offset: (None, None),
-                    }), //TODO
+                    }),
                     mints: 0,
                     premine: 0,
                     spaced_rune: SpacedRune { rune, spacers: 128 },
-                    symbol: Some('\u{29C9}'.to_string()), //TODO
+                    symbol: Some('\u{29C9}'.to_string()),
                     timestamp: 0,
                     turbo: true,
                 },
@@ -706,4 +799,21 @@ pub(crate) struct RuneUpdater {
     pub(crate) event_handler: Option<Box<dyn Fn(OrdEvent)>>,
     pub(crate) height: u32,
     pub(crate) minimum: Rune,
+}
+
+use codec::{Encode, Decode};
+use scale_info::TypeInfo;
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, Eq, PartialEq)]
+pub struct BlockPayload<Public> {
+    pub block_height: u32,
+    pub block_bytes: Vec<u8>,
+    pub public: Public,
+}
+
+impl<T: SigningTypes> SignedPayload<T>
+for BlockPayload<T::Public>
+{
+    fn public(&self) -> T::Public {
+        self.public.clone()
+    }
 }
